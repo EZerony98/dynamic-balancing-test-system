@@ -1,6 +1,6 @@
 """Selectable LabJack-only or NI-9234 + LabJack vibration acquisition."""
 
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Iterable, Mapping, Tuple
 
 import numpy as np
 
@@ -8,6 +8,44 @@ from drivers.base_acquisition import AcquisitionSource
 from drivers.labjack_t7 import LabJackT7Source
 from models.data import AcquisitionChunk, PiezoChunk
 from models.sensors import sensor_profiles_from_config
+
+
+def _select_ni9234_module(
+    configured: str, devices: Iterable[Tuple[str, str]]
+) -> str:
+    """Resolve a configured NI module, falling back to the sole NI-9234.
+
+    NI MAX device aliases are user-editable, so a chassis that is not named
+    ``cDAQ1`` makes the common default ``cDAQ1Mod1`` invalid.  When exactly one
+    NI-9234 is attached it is unambiguous and safe to select it automatically.
+    """
+    inventory = [
+        (str(name).strip(), str(product).strip())
+        for name, product in devices if str(name).strip()
+    ]
+    by_lower_name = {name.lower(): name for name, _product in inventory}
+    requested = str(configured).strip()
+    if requested and requested.lower() in by_lower_name:
+        return by_lower_name[requested.lower()]
+    candidates = [
+        name for name, product in inventory
+        if "9234" in product.upper() or "9234" in name.upper()
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
+    discovered = "、".join(
+        "%s (%s)" % (name, product or "未知型号")
+        for name, product in inventory
+    ) or "未发现任何 NI 设备"
+    if len(candidates) > 1:
+        raise RuntimeError(
+            "发现多个 NI-9234（%s），请在 devices.json 中指定 ni9234.module"
+            % "、".join(candidates)
+        )
+    raise RuntimeError(
+        "找不到配置的 NI-9234 模块 %s；NI MAX 当前设备：%s"
+        % (requested or "<空>", discovered)
+    )
 
 
 def _resample(values: np.ndarray, count: int) -> np.ndarray:
@@ -48,6 +86,7 @@ class VibrationAcquisitionSource(AcquisitionSource):
         self.mode = "piezo"
         self.task = None
         self._ni_sides = []
+        self._ni_module_name = ""
         self._sample_offset = 0
 
     def set_sensor_profiles(self, profiles: Mapping[str, object]) -> None:
@@ -71,17 +110,34 @@ class VibrationAcquisitionSource(AcquisitionSource):
                 Coupling,
                 ExcitationSource,
             )
+            from nidaqmx.system import System
         except Exception as exc:  # pragma: no cover - Windows target dependency
             raise RuntimeError(
-                "已选择 IEPE 加速度传感器，但未安装 NI-DAQmx/nidaqmx"
+                "已选择 IEPE 加速度传感器，但 Python 无法加载 nidaqmx。"
+                "请安装与 NI-9234/cDAQ 兼容的 NI-DAQmx 驱动，并在当前 Python "
+                "环境执行 pip install nidaqmx"
             ) from exc
         ni = dict(self.config.get("ni9234", {}))
-        module = str(ni.get("module", "cDAQ1Mod1")).strip()
+        configured_module = str(ni.get("module", "cDAQ1Mod1")).strip()
         current_a = float(ni.get("iepe_current_ma", 2.0)) / 1000.0
-        if not module:
-            raise RuntimeError("NI-9234 模块名称不能为空，例如 cDAQ1Mod1")
-        if not 1_652 <= self.scan_rate <= 51_200:
+        # NI-9234 uses discrete rates derived from its 13.1072 MHz timebase.
+        # Requesting the LabJack-only 30 kS/s rate can be coerced upward to
+        # 51.2 kS/s, which is unnecessarily high for this three-channel T7
+        # stream.  Use the explicit NI mixed-mode rate (25.6 kS/s by default).
+        requested_rate = float(ni.get("scan_rate", 25_600.0))
+        if not 1_652 <= requested_rate <= 51_200:
             raise RuntimeError("NI-9234 扫描率必须在 1,652 到 51,200 S/s/ch 之间")
+        try:
+            inventory = [
+                (device.name, getattr(device, "product_type", ""))
+                for device in System.local().devices
+            ]
+        except Exception as exc:
+            raise RuntimeError(
+                "无法读取 NI MAX 设备列表，请确认 NI-DAQmx Runtime 已安装且服务正常：%s"
+                % exc
+            ) from exc
+        module = _select_ni9234_module(configured_module, inventory)
         task = nidaqmx.Task()
         try:
             for side in self._ni_sides:
@@ -107,16 +163,21 @@ class VibrationAcquisitionSource(AcquisitionSource):
                 )
                 channel.ai_coupling = Coupling.AC
             task.timing.cfg_samp_clk_timing(
-                rate=self.scan_rate,
+                rate=requested_rate,
                 sample_mode=AcquisitionType.CONTINUOUS,
                 samps_per_chan=self.scans_per_read * 4,
             )
             self.scan_rate = float(task.timing.samp_clk_rate)
             task.start()
-        except Exception:
+        except Exception as exc:
             task.close()
-            raise
+            raise RuntimeError(
+                "NI-9234 %s 启动失败：%s。请在 NI MAX 中确认模块自检通过、"
+                "所选 ai 通道未被其他程序占用，且 IEPE 激励可用"
+                % (module, exc)
+            ) from exc
         self.task = task
+        self._ni_module_name = module
 
     @staticmethod
     def _ni_matrix(raw: object, channel_count: int) -> np.ndarray:
@@ -153,7 +214,10 @@ class VibrationAcquisitionSource(AcquisitionSource):
         ni = dict(self.config.get("ni9234", {}))
         return {
             "name": "NI-9234 + LabJack T7",
-            "serial": "%s / T7 %s" % (ni.get("module", "cDAQ1Mod1"), info["serial"]),
+            "serial": "%s / T7 %s" % (
+                self._ni_module_name or ni.get("module", "cDAQ1Mod1"),
+                info["serial"],
+            ),
             "connection": "NI IEPE + LabJack %s" % info["connection"],
             "mode": self.mode,
             "scan_rate": self.scan_rate,
@@ -219,4 +283,5 @@ class VibrationAcquisitionSource(AcquisitionSource):
                 pass
         self.task = None
         self._ni_sides = []
+        self._ni_module_name = ""
 

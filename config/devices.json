@@ -32,6 +32,7 @@
       "module": "cDAQ1Mod1",
       "left_channel": "ai0",
       "right_channel": "ai1",
+      "scan_rate": 25600,
       "iepe_current_ma": 2.0
     }
   }

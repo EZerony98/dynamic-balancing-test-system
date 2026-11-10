@@ -62,7 +62,7 @@ cd /Users/apple/PycharmProjects/dynamic_balancing_test
 .venv/bin/python main.py
 ```
 
-目标电脑需安装 LabJack LJM 驱动。Windows 上使用 IEPE 时还需安装 NI-DAQmx、在 NI MAX 中确认 cDAQ-9174/NI-9234 自检通过，并安装 `nidaqmx` Python 包。`config/devices.json` 可设置 NI 模块名和 ai0/ai1；LabJack 序列号默认 `AUTO`。`config/process.json` 可修改 PPR、候选 1X 范围、分析窗、转速波动及信噪比门限。
+目标电脑需安装 LabJack LJM 驱动。Windows 上使用 IEPE 时还需安装 NI-DAQmx、在 NI MAX 中确认 cDAQ-9174/NI-9234 自检通过，并安装 `nidaqmx` Python 包。`config/devices.json` 可设置 NI 模块名、ai0/ai1 及混合采样率；默认使用 NI-9234 原生的 25.6 kS/s，避免把 30 kS/s 强制提升到 51.2 kS/s 后超过 LabJack 三通道采集预算。若默认模块别名与 NI MAX 不一致，只有一个 NI-9234 时程序会自动识别。LabJack 序列号默认 `AUTO`。`config/process.json` 可修改 PPR、候选 1X 范围、分析窗、转速波动及信噪比门限。
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s tests -v

@@ -17,6 +17,7 @@ class AcquisitionWorker(QObject):
     piezo_one_x_ready = Signal(object)
     stream_started = Signal(float, str)
     stream_stopped = Signal()
+    startup_failed = Signal(str)
     error = Signal(str)
 
     def __init__(
@@ -112,8 +113,11 @@ class AcquisitionWorker(QObject):
             self.stream_started.emit(scan_rate, mode)
         except Exception as exc:
             self.running = False
-            self.error.emit("振动/转速采集启动失败：%s" % exc)
-            self.stream_stopped.emit()
+            try:
+                self.source.close()
+            except Exception:
+                pass
+            self.startup_failed.emit("振动/转速采集启动失败：%s" % exc)
 
     @Slot()
     def _read(self) -> None:

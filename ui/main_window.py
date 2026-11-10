@@ -89,6 +89,7 @@ class MainWindow(QMainWindow):
         self.spectrum_enabled = False
         self.active_mode: Optional[str] = None
         self._pending_mode: Optional[str] = None
+        self._last_acquisition_error: Optional[str] = None
         self.latest_balancing: Optional[BalancingChunk] = None
         self.latest_piezo: Optional[PiezoChunk] = None
         self.latest_analysis: Optional[PiezoSpectrumAnalysis] = None
@@ -591,6 +592,7 @@ class MainWindow(QMainWindow):
         self.sensor_settings_requested.connect(self.worker.set_sensor_profiles)
         self.worker.stream_started.connect(self._stream_started)
         self.worker.stream_stopped.connect(self._stream_stopped)
+        self.worker.startup_failed.connect(self._acquisition_start_failed)
         self.worker.error.connect(self._show_error)
         self.thread.start()
 
@@ -666,6 +668,7 @@ class MainWindow(QMainWindow):
         self._start_mode(mode)
 
     def _start_mode(self, mode: str) -> None:
+        self._last_acquisition_error = None
         spectrum_mode = mode == "piezo"
         if spectrum_mode:
             self.ui.navigationList.setCurrentRow(0)
@@ -721,9 +724,18 @@ class MainWindow(QMainWindow):
         self.ui.stopButton.setEnabled(True)
         self.ui.spectrumButton.setEnabled(False)
         self.ui.workflowStatusLabel.setText("正在连接设备…")
+        active_accelerometer = spectrum_mode and any(
+            profile.enabled and profile.sensor_type == "accelerometer"
+            for profile in self.sensor_profiles.values()
+        )
+        acquisition_label = (
+            "NI-9234 IEPE + LabJack FIO3 转速"
+            if active_accelerometer else
+            ("AIN0/AIN3 振动传感器" if spectrum_mode else "兼容通道")
+        )
         self.statusBar().showMessage(
-            "正在连接 T7 | %s + %s / %.1f kScan/s"
-            % ("AIN0/AIN3 振动传感器" if spectrum_mode else "兼容通道", self._fio3_label(), scan_rate / 1000.0)
+            "正在连接 %s | %s / %.1f kScan/s"
+            % (acquisition_label, self._fio3_label(), scan_rate / 1000.0)
         )
 
     def stop_acquisition(self) -> None:
@@ -1340,6 +1352,7 @@ class MainWindow(QMainWindow):
             panel.plot.setXRange(0.0, maximum_frequency, padding=0.0)
 
     def _stream_started(self, scan_rate: float, mode: str) -> None:
+        self._last_acquisition_error = None
         self.acquisition_running = True
         self.active_mode = mode
         self.spectrum_enabled = mode == "piezo"
@@ -1386,8 +1399,12 @@ class MainWindow(QMainWindow):
             if previous_mode == "piezo" or self.spectrum_enabled:
                 self._apply_spectrum_mode(False)
             self.ui.spectrumButton.setEnabled(True)
-            self.ui.workflowStatusLabel.setText("已停止 · 可开始下一次测量")
-            self.statusBar().showMessage("LabJack T7 | 已安全停止")
+            if self._last_acquisition_error:
+                self.ui.workflowStatusLabel.setText("采集失败 · 请查看错误提示")
+                self.statusBar().showMessage(self._last_acquisition_error)
+            else:
+                self.ui.workflowStatusLabel.setText("已停止 · 可开始下一次测量")
+                self.statusBar().showMessage("LabJack T7 | 已安全停止")
 
     def export_current_data(self) -> None:
         if (
@@ -1557,16 +1574,33 @@ class MainWindow(QMainWindow):
         setattr(self, bad_updates_attribute, bad_updates)
         return stable, "脉冲异常/保持"
 
+    def _acquisition_start_failed(self, message: str) -> None:
+        """Restore the UI first, then present a persistent startup error."""
+        self._last_acquisition_error = message
+        self._stream_stopped()
+        self._show_error(message)
+
     def _show_error(self, message: str) -> None:
+        self._last_acquisition_error = message
         self.statusBar().showMessage(message)
         self.ui.startButton.setEnabled(False)
         self.ui.spectrumButton.setEnabled(True)
         self.ui.stopButton.setEnabled(False)
         self.ui.productIdEdit.setEnabled(True)
         self.ui.measurementTemplateComboBox.setEnabled(True)
-        self.ui.workflowStatusLabel.setText("设备异常 · 请检查接线与供电")
-        self.ui.balancingDeviceLabel.setText("LabJack T7  ● 连接失败")
+        self.ui.workflowStatusLabel.setText("设备异常 · 请查看错误详情")
+        self.ui.balancingDeviceLabel.setText("采集设备  ● 连接失败")
         self.ui.balancingDeviceLabel.setStyleSheet("color:#d5122d;font-weight:700")
+        QMessageBox.critical(
+            self,
+            "采集设备启动失败",
+            message +
+            "\n\n如果当前选择了 IEPE 加速度传感器，请依次检查："
+            "\n1. Windows 已安装 NI-DAQmx，NI MAX 能看到 cDAQ-9174 和 NI-9234；"
+            "\n2. NI MAX 中 NI-9234 自检通过，通道没有被其他软件占用；"
+            "\n3. 运行本程序的 Python 环境已安装 nidaqmx；"
+            "\n4. 加速度传感器接在 NI-9234 对应 ai 通道，而不是压电放大板。",
+        )
 
     def closeEvent(self, event: object) -> None:
         if self.record_thread.isRunning():
