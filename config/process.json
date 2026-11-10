@@ -1,0 +1,82 @@
+{
+  "spectrum": {
+    "enabled_on_start": false,
+    "record_on_start": false,
+    "fft_size": 65536,
+    "window": "Hann",
+    "remove_dc": true,
+    "minimum_frequency": 0,
+    "maximum_frequency": 300,
+    "maximum_frequency_limit": 25000,
+    "raw_display_seconds": 0.2,
+    "raw_display_max_seconds": 5.0,
+    "target_frequency": 154.0,
+    "target_window_seconds": 1.5,
+    "target_smoothing_alpha": 0.08,
+    "analysis_interval_ms": 200
+  },
+  "piezo_balance": {
+    "analysis_mode": "search",
+    "ppr": 1,
+    "search_min_hz": 120.0,
+    "search_max_hz": 200.0,
+    "window_seconds": 2.0,
+    "rpm_variation_limit": 0.05,
+    "max_bad_reference_updates": 3,
+    "reference_jump_limit": 0.05,
+    "reference_change_confirm_updates": 3,
+    "max_reference_held_fraction": 0.1,
+    "reference_tolerance": 0.15,
+    "minimum_snr": 5.0,
+    "interchannel_delay_us": 8.0,
+    "reference_channel_delay_us": 16.0,
+    "synchronous_frequency_tolerance": 0.05,
+    "synchronous_period_variation_limit": 0.05,
+    "saturation_spike_fraction_limit": 0.002,
+    "saturation_run_limit_samples": 2,
+    "angle_direction": 1,
+    "left_angle_offset_degrees": 0.0,
+    "right_angle_offset_degrees": 0.0
+  },
+  "sensors": {
+    "left": {
+      "sensor_type": "piezo",
+      "model": "压电陶瓷 + 现有放大板",
+      "sensitivity_mv_per_g": 0.0,
+      "display_unit": "mV",
+      "polarity": 1
+    },
+    "right": {
+      "sensor_type": "piezo",
+      "model": "压电陶瓷 + 现有放大板",
+      "sensitivity_mv_per_g": 0.0,
+      "display_unit": "mV",
+      "polarity": 1
+    }
+  },
+  "phase": {
+    "reference": "speed",
+    "reference_edge": "rising",
+    "target_edge": "rising",
+    "direction": 1,
+    "a_offset_degrees": 0.0,
+    "b_offset_degrees": 0.0,
+    "window_seconds": 1.0,
+    "hold_seconds": 0.6,
+    "stale_seconds": 0.25
+  },
+  "calibration": {
+    "force_a": {
+      "hardware_gain": 1.0,
+      "offset_v": 0.0,
+      "sensitivity": 1.0,
+      "unit": "V"
+    },
+    "force_b": {
+      "hardware_gain": 1.0,
+      "offset_v": 0.0,
+      "sensitivity": 1.0,
+      "unit": "V"
+    }
+  }
+}

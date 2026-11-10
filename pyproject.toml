@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynamic-balancing-test"
+version = "0.2.0"
+description = "PySide6 host application for dual-piezo dynamic balancing measurements"
+readme = "README.md"
+requires-python = ">=3.9,<3.10"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["drivers*", "models*", "services*", "ui*", "utils*", "workers*"]
+exclude = ["tests*"]
+
+[tool.pyright]
+pythonVersion = "3.9"
+include = ["main.py", "drivers", "models", "services", "ui", "utils", "workers"]

@@ -1,0 +1,38 @@
+{
+  "acquisition_device": {
+    "name": "Dual Piezo Dynamic Balancing",
+    "interface": "LabJack T7",
+    "connection": "USB",
+    "serial": "AUTO",
+    "device_index": 0,
+    "channels": {
+      "speed": "FIO0",
+      "position_a": "FIO1",
+      "position_b": "FIO2",
+      "motor_hall": "FIO3",
+      "force_a": "AIN0",
+      "force_b": "AIN3",
+      "piezo_left": "AIN0",
+      "piezo_right": "AIN3",
+      "piezo_reference": "DIO3"
+    },
+    "balancing_scan_rate": 20000,
+    "piezo_scan_rate": 30000,
+    "balancing_scans_per_read": 1000,
+    "piezo_scans_per_read": 1500,
+    "ppr": 1,
+    "optical_edge": "falling",
+    "optical_frequency_divisor": 4.0,
+    "optical_average_periods": 4,
+    "core_timer_frequency_hz": 40000000,
+    "pulse_stale_seconds": 0.25,
+    "ain_range": 10.0,
+    "resolution_index": 0,
+    "ni9234": {
+      "module": "cDAQ1Mod1",
+      "left_channel": "ai0",
+      "right_channel": "ai1",
+      "iepe_current_ma": 2.0
+    }
+  }
+}

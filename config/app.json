@@ -1,0 +1,15 @@
+{
+  "application": {
+    "name": "Dynamic Balancing Test System",
+    "window_title": "动平衡测试系统",
+    "language": "zh_CN"
+  },
+  "paths": {
+    "data": "data",
+    "logs": "logs",
+    "exports": "exports"
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}

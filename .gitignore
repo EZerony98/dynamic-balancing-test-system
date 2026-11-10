@@ -8,19 +8,16 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
-# Runtime and local measurement data
-data/*.db
-data/*.sqlite*
-exports/
-logs/
-
-# Local settings and secrets
 .env
 .env.*
 !.env.example
-
-# Build output
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+exports/*
+!exports/.gitkeep
 build/
 dist/
 *.spec
+

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>1680</width><height>980</height></rect></property>
+  <property name="minimumSize"><size><width>1280</width><height>800</height></size></property>
+  <property name="windowTitle"><string>动平衡测试系统</string></property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="rootLayout">
+    <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property>
+    <property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+    <property name="spacing"><number>0</number></property>
+    <item>
+     <widget class="QFrame" name="topFrame">
+      <property name="minimumSize"><size><width>0</width><height>76</height></size></property>
+      <property name="maximumSize"><size><width>16777215</width><height>76</height></size></property>
+      <property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+      <layout class="QHBoxLayout" name="topLayout">
+       <property name="leftMargin"><number>18</number></property><property name="topMargin"><number>8</number></property>
+       <property name="rightMargin"><number>18</number></property><property name="bottomMargin"><number>8</number></property>
+       <property name="spacing"><number>12</number></property>
+       <item><widget class="QLabel" name="brandLogoLabel"><property name="minimumSize"><size><width>92</width><height>44</height></size></property><property name="maximumSize"><size><width>120</width><height>54</height></size></property><property name="scaledContents"><bool>true</bool></property><property name="text"><string/></property></widget></item>
+       <item><layout class="QVBoxLayout" name="brandTextLayout"><property name="spacing"><number>0</number></property>
+        <item><widget class="QLabel" name="titleLabel"><property name="text"><string>动平衡测试系统</string></property></widget></item>
+        <item><widget class="QLabel" name="subtitleLabel"><property name="text"><string>Dynamic balancing test system</string></property></widget></item>
+       </layout></item>
+       <item><spacer name="titleSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+       <item><layout class="QVBoxLayout" name="deviceLayout"><property name="spacing"><number>1</number></property>
+        <item><widget class="QLabel" name="balancingDeviceLabel"><property name="alignment"><set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set></property><property name="text"><string>LabJack T7  ● 未连接</string></property></widget></item>
+        <item><widget class="QLabel" name="laserDeviceLabel"><property name="alignment"><set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set></property><property name="text"><string>AIN0 左 / AIN3 右 / FIO3 转子光电</string></property></widget></item>
+       </layout></item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="bodyLayout">
+      <property name="spacing"><number>0</number></property>
+      <item>
+       <widget class="QFrame" name="navigationFrame">
+        <property name="minimumSize"><size><width>190</width><height>0</height></size></property>
+        <property name="maximumSize"><size><width>230</width><height>16777215</height></size></property>
+        <layout class="QVBoxLayout" name="navigationLayout">
+         <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>16</number></property>
+         <property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>16</number></property>
+         <item><widget class="QLabel" name="navigationTitleLabel"><property name="text"><string>功能导航</string></property></widget></item>
+         <item><widget class="QListWidget" name="navigationList"><property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property><property name="spacing"><number>4</number></property></widget></item>
+         <item><widget class="QLabel" name="navigationHintLabel"><property name="wordWrap"><bool>true</bool></property><property name="text"><string>真实硬件模式&#10;AIN0 / AIN3 / FIO3</string></property></widget></item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QStackedWidget" name="contentStack">
+        <widget class="QWidget" name="measurementPage">
+         <layout class="QVBoxLayout" name="measurementPageLayout">
+          <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>10</number></property>
+          <property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>8</number></property>
+          <property name="spacing"><number>8</number></property>
+          <item>
+           <widget class="QFrame" name="laserHeaderFrame">
+            <property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+            <layout class="QHBoxLayout" name="laserHeaderLayout">
+             <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>7</number></property>
+             <property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>7</number></property><property name="spacing"><number>8</number></property>
+             <item><widget class="QLabel" name="laserSectionLabel"><property name="text"><string>左右压电实时测量与频谱诊断</string></property></widget></item>
+             <item><widget class="QLabel" name="productIdLabel"><property name="text"><string>工件编号</string></property></widget></item>
+             <item><widget class="QLineEdit" name="productIdEdit"><property name="minimumSize"><size><width>150</width><height>0</height></size></property><property name="maximumSize"><size><width>240</width><height>16777215</height></size></property><property name="placeholderText"><string>扫码或输入，可留空</string></property></widget></item>
+             <item><widget class="QLabel" name="measurementTemplateLabel"><property name="text"><string>测量模板</string></property></widget></item>
+             <item><widget class="QComboBox" name="measurementTemplateComboBox"><property name="minimumSize"><size><width>130</width><height>0</height></size></property><property name="maximumSize"><size><width>190</width><height>16777215</height></size></property></widget></item>
+             <item><layout class="QHBoxLayout" name="analysisModeLayout"><property name="spacing"><number>0</number></property></layout></item>
+             <item><widget class="QLabel" name="targetFrequencyLabel"><property name="text"><string>观察频率</string></property></widget></item>
+             <item><widget class="QDoubleSpinBox" name="targetFrequencySpinBox"><property name="decimals"><number>2</number></property><property name="minimum"><double>0.010000000000000</double></property><property name="maximum"><double>50000.000000000000000</double></property><property name="singleStep"><double>1.000000000000000</double></property><property name="value"><double>154.000000000000000</double></property><property name="suffix"><string> Hz</string></property></widget></item>
+             <item><spacer name="laserHeaderSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property></spacer></item>
+             <item><widget class="QPushButton" name="startButton"><property name="visible"><bool>false</bool></property><property name="text"><string>兼容采集</string></property></widget></item>
+             <item><widget class="QPushButton" name="spectrumButton"><property name="text"><string>开始测量  F3</string></property></widget></item>
+             <item><widget class="QPushButton" name="stopButton"><property name="enabled"><bool>false</bool></property><property name="text"><string>停止  Del</string></property></widget></item>
+             <item><widget class="QPushButton" name="spectrumRecordButton"><property name="enabled"><bool>false</bool></property><property name="checkable"><bool>true</bool></property><property name="text"><string>开始记录</string></property></widget></item>
+             <item><widget class="QPushButton" name="exportButton"><property name="text"><string>导出当前数据</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QFrame" name="workflowFrame"><property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+            <layout class="QHBoxLayout" name="workflowLayout"><property name="leftMargin"><number>12</number></property><property name="topMargin"><number>5</number></property><property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>5</number></property>
+             <item><widget class="QLabel" name="workflowTitleLabel"><property name="text"><string>测量流程</string></property></widget></item>
+             <item><widget class="QLabel" name="workflowStepsLabel"><property name="text"><string>1 输入编号  →  2 等待稳速  →  3 同步分析  →  4 确认结果  →  5 记录 / 导出</string></property></widget></item>
+             <item><spacer name="workflowSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>30</width><height>20</height></size></property></spacer></item>
+             <item><widget class="QLabel" name="workflowStatusLabel"><property name="text"><string>待机</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QFrame" name="summaryFrame"><property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+            <layout class="QHBoxLayout" name="summaryLayout"><property name="leftMargin"><number>12</number></property><property name="topMargin"><number>5</number></property><property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>5</number></property>
+             <item><widget class="QLabel" name="balancingSectionLabel"><property name="text"><string>实时测量结果</string></property></widget></item>
+             <item><widget class="QLabel" name="laserMetricsLabel"><property name="wordWrap"><bool>true</bool></property><property name="text"><string>转速 -- RPM | 左 1X -- mV | 右 1X -- mV | 相位 --°</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
+          <item><layout class="QHBoxLayout" name="balancingCardsLayout"><property name="spacing"><number>8</number></property></layout></item>
+          <item><layout class="QVBoxLayout" name="balancePanelLayout"><property name="spacing"><number>0</number></property></layout></item>
+          <item><layout class="QGridLayout" name="laserPlotsLayout"><property name="horizontalSpacing"><number>10</number></property><property name="verticalSpacing"><number>8</number></property></layout></item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
