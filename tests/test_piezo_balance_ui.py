@@ -80,6 +80,16 @@ class PiezoBalanceUiTest(unittest.TestCase):
             self.assertIsNone(window.right_wave.second_curve)
             self.assertIs(window.ui.laserPlotsLayout.itemAtPosition(0, 0).widget(), window.laser_wave)
             self.assertIs(window.ui.laserPlotsLayout.itemAtPosition(1, 0).widget(), window.right_wave)
+            self.assertIs(
+                window.ui.laserPlotsLayout.itemAtPosition(0, 2).widget(),
+                window.target_tone_plot,
+            )
+            self.assertIs(
+                window.ui.laserPlotsLayout.itemAtPosition(1, 2).widget(),
+                window.right_tone_plot,
+            )
+            self.assertFalse(window.target_tone_plot.isHidden())
+            self.assertFalse(window.right_tone_plot.isHidden())
             worker.running = False
         finally:
             window.close()

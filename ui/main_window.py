@@ -245,20 +245,16 @@ class MainWindow(QMainWindow):
         for panel in (self.laser_fft, self.right_fft):
             panel.plot.setXRange(0, maximum_frequency, padding=0)
             panel.set_frequency_marker(self.ui.targetFrequencySpinBox.value())
-        # Production measurement and spectrum diagnosis share one screen.  The
-        # extracted 1X sine waves remain available to the analysis/tests, but
-        # are summarized numerically instead of duplicating the main charts.
-        for panel in (self.target_tone_plot, self.right_tone_plot):
-            panel.setParent(self)
-            panel.hide()
+        # Keep the three views needed to judge a balancing result together:
+        # raw waveform, full spectrum, and the fitted rotor-1X sine component.
         for row, panels in enumerate((
-            (self.laser_wave, self.laser_fft),
-            (self.right_wave, self.right_fft),
+            (self.laser_wave, self.laser_fft, self.target_tone_plot),
+            (self.right_wave, self.right_fft, self.right_tone_plot),
         )):
             for column, panel in enumerate(panels):
                 self.ui.laserPlotsLayout.addWidget(panel, row, column)
             self.ui.laserPlotsLayout.setRowStretch(row, 1)
-        for column in range(2):
+        for column in range(3):
             self.ui.laserPlotsLayout.setColumnStretch(column, 1)
 
         self.speed_card = BalancingDataCard("转速", "#0875c1", "RPM", True)

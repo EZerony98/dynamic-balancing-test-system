@@ -19,6 +19,14 @@ class _FakeNiTask:
         return np.ones(number_of_samples_per_channel, dtype=float)
 
 
+class _FakeDualNiTask:
+    def read(self, number_of_samples_per_channel, timeout):
+        return [
+            np.ones(number_of_samples_per_channel, dtype=float),
+            np.full(number_of_samples_per_channel, 2.0, dtype=float),
+        ]
+
+
 class _FakeLabJack:
     def read(self):
         return AcquisitionChunk(
@@ -95,6 +103,29 @@ class VibrationSourceTest(unittest.TestCase):
         self.assertFalse(chunk.channels_synchronized)
         self.assertFalse(chunk.reference_synchronized)
         self.assertEqual(chunk.acquisition_backend, "ni9234+labjack")
+
+    def test_two_iepe_sides_share_ni_clock_and_keep_relative_phase_eligible(self):
+        profiles = {
+            "left": {
+                "sensor_type": "accelerometer", "model": "left",
+                "sensitivity_mv_per_g": 10.0, "display_unit": "g", "polarity": 1,
+            },
+            "right": {
+                "sensor_type": "accelerometer", "model": "right",
+                "sensitivity_mv_per_g": 20.0, "display_unit": "g", "polarity": 1,
+            },
+        }
+        source = VibrationAcquisitionSource(self.device, profiles)
+        source.labjack = _FakeLabJack()
+        source.task = _FakeDualNiTask()
+        source._ni_sides = ["left", "right"]
+        source.scans_per_read = 4
+        source.scan_rate = 4_000.0
+        chunk = source.read().piezo
+        np.testing.assert_allclose(chunk.channels["left"], .01)
+        np.testing.assert_allclose(chunk.channels["right"], .04)
+        self.assertTrue(chunk.channels_synchronized)
+        self.assertFalse(chunk.reference_synchronized)
 
 
 if __name__ == "__main__":
