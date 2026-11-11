@@ -8,10 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
-from models.data import PiezoChunk
-from models.piezo_balance import PiezoSettings
+from models.data import Metrics, PiezoChunk
+from models.piezo_balance import PiezoSettings, PiezoSpectrumAnalysis
 from models.sensors import SensorProfile, sensor_profiles_from_config
 from services.piezo_balance import DualPiezoAnalyzer
+from services.export_service import ExportService
 from services.piezo_record_service import PiezoRecordService
 
 
@@ -346,9 +347,93 @@ class PiezoRecordTest(unittest.TestCase):
             with (path / "piezo_left_right_raw.csv").open(encoding="utf-8-sig") as handle:
                 rows = list(csv.reader(handle))
             self.assertEqual(rows[0][2:], [
-                "left_voltage_v", "right_voltage_v", "fio3_state"
+                "left_voltage_v", "left_piezo_voltage_mv",
+                "right_voltage_v", "right_piezo_voltage_mv", "fio3_state"
             ])
-            self.assertEqual(rows[1][2:], ["0.01", "-0.03", "1.0"])
+            self.assertEqual(rows[1][2:], [
+                "0.01", "10.0", "-0.03", "-30.0", "1.0"
+            ])
+
+    def test_mixed_sensor_record_exports_voltage_and_engineering_units(self) -> None:
+        sensors = {
+            "left": {
+                "sensor_type": "accelerometer", "model": "PCB 353B15",
+                "sensitivity_mv_per_g": 10.0, "display_unit": "g", "polarity": 1,
+            },
+            "right": {
+                "sensor_type": "piezo", "model": "piezo",
+                "sensitivity_mv_per_g": 0.0, "display_unit": "mV", "polarity": 1,
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = PiezoRecordService(Path(directory))
+            path = recorder.start({"sensors": sensors})
+            recorder.append_waveform(PiezoChunk(
+                channels={"left": np.array([.002]), "right": np.array([-.03])},
+                reference_state=np.array([1.0]), scan_rate=25_600,
+            ), 180.0)
+            recorder.stop()
+            with (path / "piezo_left_right_raw.csv").open(
+                encoding="utf-8-sig"
+            ) as handle:
+                rows = list(csv.reader(handle))
+            self.assertIn("left_acceleration_g", rows[0])
+            self.assertIn("left_acceleration_m_s2", rows[0])
+            self.assertIn("right_piezo_voltage_mv", rows[0])
+            self.assertAlmostEqual(float(rows[1][3]), 0.2)
+            self.assertAlmostEqual(float(rows[1][4]), 0.2 * 9.80665)
+            metadata = json.loads(
+                (path / "measurement_metadata.json").read_text()
+            )
+            self.assertFalse(metadata["shaft_angle_synchronous"])
+
+    def test_current_export_includes_mixed_sensor_engineering_units(self) -> None:
+        sensors = {
+            "left": {
+                "sensor_type": "accelerometer", "model": "PCB 353B15",
+                "sensitivity_mv_per_g": 10.0, "display_unit": "g", "polarity": 1,
+            },
+            "right": {
+                "sensor_type": "piezo", "model": "piezo",
+                "sensitivity_mv_per_g": 0.0, "display_unit": "mV", "polarity": 1,
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            chunk = PiezoChunk(
+                channels={"left": np.array([.002]), "right": np.array([-.03])},
+                reference_state=np.array([1.0]), scan_rate=25_600,
+                acquisition_backend="ni9234+labjack",
+                channels_synchronized=False, reference_synchronized=False,
+            )
+            analysis = PiezoSpectrumAnalysis(
+                frequencies=np.array([180.0]),
+                amplitudes={"left": np.array([.00024]),
+                            "right": np.array([.058])},
+                metrics={"left": Metrics(), "right": Metrics()},
+                frequency_resolution=0.390625,
+            )
+            paths = ExportService(Path(directory)).export_piezo(
+                chunk, analysis, sensors=sensors,
+                device={
+                    "channels": {"piezo_left": "AIN0", "piezo_right": "AIN3",
+                                 "piezo_reference": "DIO3"},
+                    "ni9234": {"module": "cDAQ1Mod1", "left_channel": "ai0"},
+                },
+            )
+            with paths["spectrum"].open(encoding="utf-8-sig") as handle:
+                rows = list(csv.reader(handle))
+            self.assertEqual(rows[0], [
+                "frequency_hz", "left_amplitude_v", "left_amplitude_g",
+                "left_amplitude_m_s2", "right_amplitude_v",
+                "right_amplitude_mv",
+            ])
+            self.assertAlmostEqual(float(rows[1][2]), 0.024)
+            self.assertAlmostEqual(float(rows[1][5]), 58.0)
+            metadata = json.loads(
+                (paths["raw"].parent / "measurement_metadata.json").read_text()
+            )
+            self.assertEqual(metadata["source"], "ni9234+labjack")
+            self.assertFalse(metadata["reference_synchronized"])
 
 
 if __name__ == "__main__":

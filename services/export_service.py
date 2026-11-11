@@ -11,6 +11,12 @@ import numpy as np
 
 from models.data import BalancingChunk, LaserAnalysis, LaserChunk, PiezoChunk
 from models.piezo_balance import PiezoSpectrumAnalysis
+from services.sensor_export import (
+    amplitude_engineering_columns,
+    engineering_units,
+    export_profiles,
+    waveform_engineering_columns,
+)
 
 
 class ExportService:
@@ -67,8 +73,9 @@ class ExportService:
         product_id: str = "",
         measurement_template: str = "",
         sensors: dict = None,
+        device: dict = None,
     ) -> Dict[str, Path]:
-        """Export both voltages and both spectra with explicit source identity."""
+        """Export raw volts plus sensor-specific engineering-unit columns."""
         safe_product_id = re.sub(r"[^0-9A-Za-z._-]+", "_", product_id.strip()).strip("._-")
         prefix = (safe_product_id + "_") if safe_product_id else ""
         timestamp = prefix + datetime.now().strftime("piezo_%Y%m%d_%H%M%S_%f")
@@ -76,22 +83,75 @@ class ExportService:
         target.mkdir(parents=True, exist_ok=True)
         raw_path = target / "piezo_left_right_raw.csv"
         fft_path = target / "piezo_left_right_fft.csv"
+        profiles = export_profiles(sensors)
+        waveform_headers = []
+        spectrum_headers = []
+        for side in ("left", "right"):
+            waveform_headers.append("%s_voltage_v" % side)
+            waveform_headers.extend(
+                name for name, _value in waveform_engineering_columns(
+                    side, profiles[side], 0.0
+                )
+            )
+            spectrum_headers.append("%s_amplitude_v" % side)
+            spectrum_headers.extend(
+                name for name, _value in amplitude_engineering_columns(
+                    side, profiles[side], 0.0
+                )
+            )
         with raw_path.open("w", newline="", encoding="utf-8-sig") as output:
             writer = csv.writer(output)
-            writer.writerow(("time_s", "sample_index", "left_voltage_v",
-                             "right_voltage_v", "fio3_state"))
+            writer.writerow(("time_s", "sample_index", *waveform_headers,
+                             "fio3_state"))
             for index, (left, right) in enumerate(zip(
                 chunk.channels["left"], chunk.channels["right"]
             )):
-                writer.writerow((index / chunk.scan_rate, chunk.start_sample + index,
-                                 float(left), float(right),
-                                 float(chunk.reference_state[index])
-                                 if len(chunk.reference_state) > index else ""))
+                row = [index / chunk.scan_rate, chunk.start_sample + index]
+                for side, value in (("left", left), ("right", right)):
+                    row.append(float(value))
+                    row.extend(
+                        engineering for _name, engineering
+                        in waveform_engineering_columns(
+                            side, profiles[side], float(value)
+                        )
+                    )
+                row.append(
+                    float(chunk.reference_state[index])
+                    if len(chunk.reference_state) > index else ""
+                )
+                writer.writerow(row)
         with fft_path.open("w", newline="", encoding="utf-8-sig") as output:
             writer = csv.writer(output)
-            writer.writerow(("frequency_hz", "left_amplitude_v", "right_amplitude_v"))
-            writer.writerows(zip(analysis.frequencies, analysis.amplitudes["left"],
-                                 analysis.amplitudes["right"]))
+            writer.writerow(("frequency_hz", *spectrum_headers))
+            for frequency, left, right in zip(
+                analysis.frequencies,
+                analysis.amplitudes["left"],
+                analysis.amplitudes["right"],
+            ):
+                row = [float(frequency)]
+                for side, value in (("left", left), ("right", right)):
+                    row.append(float(value))
+                    row.extend(
+                        engineering for _name, engineering
+                        in amplitude_engineering_columns(
+                            side, profiles[side], float(value)
+                        )
+                    )
+                writer.writerow(row)
+        device = dict(device or {})
+        ni = dict(device.get("ni9234", {}))
+        channels = dict(device.get("channels", {}))
+        channel_sources = {}
+        for side, profile in profiles.items():
+            if profile.sensor_type == "accelerometer":
+                channel_sources[side] = "NI-9234 %s/%s" % (
+                    ni.get("module", "auto"),
+                    ni.get("%s_channel" % side, "ai0" if side == "left" else "ai1"),
+                )
+            else:
+                channel_sources[side] = channels.get(
+                    "piezo_%s" % side, "AIN0" if side == "left" else "AIN3"
+                )
         with (target / "measurement_metadata.json").open("w", encoding="utf-8") as output:
             json.dump(
                 {
@@ -99,10 +159,21 @@ class ExportService:
                     "record_type": "current_data_export",
                     "product_id": product_id.strip(),
                     "measurement_template": measurement_template.strip(),
-                    "source": "real_labjack_t7",
-                    "channels": {"left": "AIN0", "right": "AIN3", "reference": "FIO3"},
+                    "source": chunk.acquisition_backend,
+                    "channels": {
+                        **channel_sources,
+                        "reference": channels.get("piezo_reference", "FIO3"),
+                    },
                     "sensors": sensors or {},
+                    "engineering_units": engineering_units(profiles),
+                    "scan_rate_hz": chunk.scan_rate,
+                    "channels_synchronized": chunk.channels_synchronized,
+                    "reference_synchronized": chunk.reference_synchronized,
                     "raw_voltage_preserved": True,
+                    "unit_note": (
+                        "*_voltage_v/*_amplitude_v 保留传感器电压；"
+                        "加速度侧同时给出 g、m/s^2，压电侧同时给出 mV"
+                    ),
                 },
                 output,
                 ensure_ascii=False,

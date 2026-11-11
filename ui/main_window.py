@@ -768,6 +768,10 @@ class MainWindow(QMainWindow):
                 self.ui.spectrumRecordButton.setChecked(False)
                 return
             self.ui.spectrumRecordButton.setEnabled(False)
+            has_accelerometer = any(
+                profile.enabled and profile.sensor_type == "accelerometer"
+                for profile in self.sensor_profiles.values()
+            )
             self.record_start_requested.emit({
                 "device": self.device_config,
                 "spectrum": self.spectrum_config,
@@ -776,7 +780,11 @@ class MainWindow(QMainWindow):
                 "product_id": self.ui.productIdEdit.text().strip(),
                 "measurement_template": self.ui.measurementTemplateComboBox.currentText(),
                 "raw_unit": "V",
-                "phase_reference": "sample_aligned_fio3_falling_edge",
+                "phase_reference": (
+                    "asynchronous_labjack_fio3_falling_edge"
+                    if has_accelerometer else
+                    "sample_aligned_fio3_falling_edge"
+                ),
             })
         else:
             self._stop_laser_recording()
@@ -1418,6 +1426,7 @@ class MainWindow(QMainWindow):
                 product_id=self.ui.productIdEdit.text().strip(),
                 measurement_template=self.ui.measurementTemplateComboBox.currentText(),
                 sensors=sensor_profiles_to_dict(self.sensor_profiles),
+                device=self.device_config,
             )
             QMessageBox.information(
                 self,
