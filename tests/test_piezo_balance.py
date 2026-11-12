@@ -332,7 +332,7 @@ class PiezoRecordTest(unittest.TestCase):
     def test_record_contains_both_voltages_and_explicit_limitations(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             recorder = PiezoRecordService(Path(directory))
-            path = recorder.start({"operator": "test"})
+            path = recorder.start({"operator": "test", "product_id": "P-001"})
             recorder.append_waveform(PiezoChunk(
                 channels={"left": np.array([.01, .02]),
                           "right": np.array([-.03, -.04])},
@@ -344,7 +344,9 @@ class PiezoRecordTest(unittest.TestCase):
             self.assertTrue(metadata["shaft_reference_streamed"])
             self.assertTrue(metadata["shaft_angle_synchronous"])
             self.assertFalse(metadata["shaft_angle_calibrated"])
-            with (path / "piezo_left_right_raw.csv").open(encoding="utf-8-sig") as handle:
+            with (path / "P-001_piezo_left_right_raw.csv").open(
+                encoding="utf-8-sig"
+            ) as handle:
                 rows = list(csv.reader(handle))
             self.assertEqual(rows[0][2:], [
                 "left_voltage_v", "left_piezo_voltage_mv",
@@ -367,13 +369,13 @@ class PiezoRecordTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as directory:
             recorder = PiezoRecordService(Path(directory))
-            path = recorder.start({"sensors": sensors})
+            path = recorder.start({"sensors": sensors, "product_id": "ACC-01"})
             recorder.append_waveform(PiezoChunk(
                 channels={"left": np.array([.002]), "right": np.array([-.03])},
                 reference_state=np.array([1.0]), scan_rate=25_600,
             ), 180.0)
             recorder.stop()
-            with (path / "piezo_left_right_raw.csv").open(
+            with (path / "ACC-01_piezo_left_right_raw.csv").open(
                 encoding="utf-8-sig"
             ) as handle:
                 rows = list(csv.reader(handle))
@@ -386,6 +388,48 @@ class PiezoRecordTest(unittest.TestCase):
                 (path / "measurement_metadata.json").read_text()
             )
             self.assertFalse(metadata["shaft_angle_synchronous"])
+
+    def test_fixed_duration_record_trims_last_chunk_and_writes_dictionary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = PiezoRecordService(Path(directory))
+            path = recorder.start({
+                "product_id": "转子 A 01",
+                "record_duration_seconds": 2.0,
+            })
+            first = PiezoChunk(
+                channels={"left": np.arange(12) / 100.0,
+                          "right": -np.arange(12) / 100.0},
+                reference_state=np.zeros(12), scan_rate=10, start_sample=100,
+            )
+            second = PiezoChunk(
+                channels={"left": np.arange(12, 24) / 100.0,
+                          "right": -np.arange(12, 24) / 100.0},
+                reference_state=np.ones(12), scan_rate=10, start_sample=112,
+            )
+            self.assertFalse(recorder.append_waveform(first, 5.0))
+            self.assertTrue(recorder.append_waveform(second, 5.0))
+            recorder.stop()
+            raw_path = path / "转子_A_01_piezo_left_right_raw.csv"
+            with raw_path.open(encoding="utf-8-sig") as handle:
+                rows = list(csv.reader(handle))
+            self.assertEqual(len(rows), 21)
+            self.assertEqual(rows[1][0:2], ["100", "0.0"])
+            self.assertEqual(rows[-1][0:2], ["119", "1.9"])
+            metadata = json.loads(
+                (path / "measurement_metadata.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(metadata["capture_complete"])
+            self.assertEqual(metadata["target_sample_count"], 20)
+            self.assertEqual(metadata["recorded_sample_count"], 20)
+            self.assertEqual(metadata["actual_duration_seconds"], 2.0)
+            dictionary_path = path / "转子_A_01_field_dictionary.csv"
+            with dictionary_path.open(encoding="utf-8-sig") as handle:
+                dictionary_rows = list(csv.DictReader(handle))
+            fields = {(row["data_file"], row["field"]) for row in dictionary_rows}
+            self.assertIn((raw_path.name, "left_voltage_v"), fields)
+            self.assertIn(("转子_A_01_rotor_photoelectric_snapshots.csv",
+                           "fio3_corrected_frequency_hz"), fields)
+            self.assertIn(("转子_A_01_piezo_one_x.jsonl", "left.amplitude_v"), fields)
 
     def test_current_export_includes_mixed_sensor_engineering_units(self) -> None:
         sensors = {
@@ -413,7 +457,7 @@ class PiezoRecordTest(unittest.TestCase):
                 frequency_resolution=0.390625,
             )
             paths = ExportService(Path(directory)).export_piezo(
-                chunk, analysis, sensors=sensors,
+                chunk, analysis, product_id="P-EXPORT", sensors=sensors,
                 device={
                     "channels": {"piezo_left": "AIN0", "piezo_right": "AIN3",
                                  "piezo_reference": "DIO3"},
@@ -429,6 +473,9 @@ class PiezoRecordTest(unittest.TestCase):
             ])
             self.assertAlmostEqual(float(rows[1][2]), 0.024)
             self.assertAlmostEqual(float(rows[1][5]), 58.0)
+            self.assertEqual(paths["raw"].name, "P-EXPORT_piezo_left_right_raw.csv")
+            self.assertEqual(paths["spectrum"].name, "P-EXPORT_piezo_left_right_fft.csv")
+            self.assertTrue(paths["field_dictionary"].exists())
             metadata = json.loads(
                 (paths["raw"].parent / "measurement_metadata.json").read_text()
             )

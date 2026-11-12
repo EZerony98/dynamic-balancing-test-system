@@ -1,4 +1,4 @@
-"""Background writer for dual-piezo voltage and spectra."""
+"""Background writer for one fixed-duration vibration measurement."""
 
 from pathlib import Path
 
@@ -28,13 +28,16 @@ class PiezoRecordWorker(QObject):
     def append_waveform(self, chunk: AcquisitionChunk) -> None:
         try:
             if chunk.piezo is not None:
-                self.service.append_waveform(
+                complete = self.service.append_waveform(
                     chunk.piezo,
                     chunk.hardware_frequencies.get("motor_hall", 0.0),
                     chunk.hardware_raw_frequencies.get(
                         "motor_hall", chunk.hardware_frequencies.get("motor_hall", 0.0)
                     ),
                 )
+                if complete:
+                    directory = self.service.stop()
+                    self.stopped.emit(str(directory) if directory else "")
         except Exception as exc:
             self.error.emit("双路压电原始信号记录失败：%s" % exc)
 

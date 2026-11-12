@@ -13,7 +13,8 @@
     "target_frequency": 154.0,
     "target_window_seconds": 1.5,
     "target_smoothing_alpha": 0.08,
-    "analysis_interval_ms": 200
+    "analysis_interval_ms": 200,
+    "record_duration_seconds": 2.0
   },
   "piezo_balance": {
     "analysis_mode": "search",

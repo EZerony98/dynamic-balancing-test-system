@@ -67,6 +67,9 @@ class MainWindow(QMainWindow):
         self.project_dir = Path(project_dir)
         self.device_config = config["devices"]["acquisition_device"]
         self.spectrum_config = config["process"]["spectrum"]
+        self.record_duration_seconds = max(
+            0.1, float(self.spectrum_config.get("record_duration_seconds", 2.0))
+        )
         self.phase_config = config["process"].get("phase", {})
         self.sensor_profiles = sensor_profiles_from_config(
             config["process"].get("sensors", {})
@@ -539,7 +542,7 @@ class MainWindow(QMainWindow):
         self.ui.startButton.clicked.connect(self.start_acquisition)
         self.ui.stopButton.clicked.connect(self.stop_acquisition)
         self.ui.spectrumButton.clicked.connect(self.toggle_spectrum)
-        self.ui.spectrumRecordButton.toggled.connect(self.toggle_spectrum_recording)
+        self.ui.spectrumRecordButton.clicked.connect(self.save_fixed_recording)
         self.ui.targetFrequencySpinBox.valueChanged.connect(
             self._target_frequency_changed
         )
@@ -635,7 +638,7 @@ class MainWindow(QMainWindow):
         self.ui.stopButton.setText("停止  Del")
         self.ui.stopButton.setEnabled(False)
         self.ui.spectrumRecordButton.setEnabled(False)
-        self.ui.spectrumRecordButton.setText("开始记录")
+        self.ui.spectrumRecordButton.setText(self._record_button_text())
         self.ui.laserMetricsLabel.setText(
             "转速 -- RPM | 左 1X -- %s | 右 1X -- %s | 右相对左相位 --°" % (
                 self.sensor_profiles["left"].effective_unit,
@@ -758,32 +761,32 @@ class MainWindow(QMainWindow):
         self.ui.spectrumRecordButton.setEnabled(enabled and self.acquisition_running)
         self.ui.laserSectionLabel.setText(self._sensor_section_title(enabled))
 
-    def toggle_spectrum_recording(self, checked: bool) -> None:
-        if checked:
-            if not self.spectrum_enabled or not self.acquisition_running:
-                self.ui.spectrumRecordButton.setChecked(False)
-                return
-            self.ui.spectrumRecordButton.setEnabled(False)
-            has_accelerometer = any(
-                profile.enabled and profile.sensor_type == "accelerometer"
-                for profile in self.sensor_profiles.values()
-            )
-            self.record_start_requested.emit({
-                "device": self.device_config,
-                "spectrum": self.spectrum_config,
-                "piezo_settings": asdict(self.balance_panel.settings),
-                "sensors": sensor_profiles_to_dict(self.sensor_profiles),
-                "product_id": self.ui.productIdEdit.text().strip(),
-                "measurement_template": self.ui.measurementTemplateComboBox.currentText(),
-                "raw_unit": "V",
-                "phase_reference": (
-                    "asynchronous_labjack_fio3_falling_edge"
-                    if has_accelerometer else
-                    "sample_aligned_fio3_falling_edge"
-                ),
-            })
-        else:
-            self._stop_laser_recording()
+    def save_fixed_recording(self) -> None:
+        if (
+            self.recording_active or not self.spectrum_enabled
+            or not self.acquisition_running
+        ):
+            return
+        self.ui.spectrumRecordButton.setEnabled(False)
+        has_accelerometer = any(
+            profile.enabled and profile.sensor_type == "accelerometer"
+            for profile in self.sensor_profiles.values()
+        )
+        self.record_start_requested.emit({
+            "device": self.device_config,
+            "spectrum": self.spectrum_config,
+            "piezo_settings": asdict(self.balance_panel.settings),
+            "sensors": sensor_profiles_to_dict(self.sensor_profiles),
+            "product_id": self.ui.productIdEdit.text().strip(),
+            "measurement_template": self.ui.measurementTemplateComboBox.currentText(),
+            "record_duration_seconds": self.record_duration_seconds,
+            "raw_unit": "V",
+            "phase_reference": (
+                "asynchronous_labjack_fio3_falling_edge"
+                if has_accelerometer else
+                "sample_aligned_fio3_falling_edge"
+            ),
+        })
 
     def _stop_laser_recording(self) -> None:
         if self.recording_active:
@@ -794,19 +797,32 @@ class MainWindow(QMainWindow):
     def _recording_started(self, directory: str) -> None:
         self.recording_active = True
         self._record_spectrum_counter = 0
-        self.ui.spectrumRecordButton.setEnabled(True)
-        self.ui.spectrumRecordButton.setText("停止记录")
-        self.ui.workflowStatusLabel.setText("测量有效 · 正在记录")
-        self.statusBar().showMessage("真实测量数据记录中 | %s" % directory)
+        self.ui.spectrumRecordButton.setEnabled(False)
+        self.ui.spectrumRecordButton.setText(
+            "正在保存 %.1f 秒…" % self.record_duration_seconds
+        )
+        self.ui.workflowStatusLabel.setText("正在保存固定时长测量数据")
+        self.statusBar().showMessage(
+            "正在截取 %.1f 秒真实测量数据 | %s"
+            % (self.record_duration_seconds, directory)
+        )
 
     def _recording_stopped(self, directory: str) -> None:
         self.recording_active = False
-        self.ui.spectrumRecordButton.blockSignals(True)
-        self.ui.spectrumRecordButton.setChecked(False)
-        self.ui.spectrumRecordButton.blockSignals(False)
-        self.ui.spectrumRecordButton.setText("开始记录")
+        self.ui.spectrumRecordButton.setText(self._record_button_text())
+        self.ui.spectrumRecordButton.setEnabled(
+            self.acquisition_running and self.spectrum_enabled
+        )
         if directory:
-            self.statusBar().showMessage("测量记录已保存 | %s" % directory)
+            self.ui.workflowStatusLabel.setText("固定时长数据已保存 · 可继续测量")
+            self.statusBar().showMessage(
+                "%.1f 秒测量记录已保存 | %s"
+                % (self.record_duration_seconds, directory)
+            )
+            self.history_page.refresh()
+
+    def _record_button_text(self) -> str:
+        return "保存 %.1f 秒数据" % self.record_duration_seconds
 
     def _device_connected(self, info: Dict[str, Any]) -> None:
         self.ui.balancingDeviceLabel.setText(

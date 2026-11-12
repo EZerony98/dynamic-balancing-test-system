@@ -73,7 +73,7 @@
              <item><widget class="QPushButton" name="startButton"><property name="visible"><bool>false</bool></property><property name="text"><string>兼容采集</string></property></widget></item>
              <item><widget class="QPushButton" name="spectrumButton"><property name="text"><string>开始测量  F3</string></property></widget></item>
              <item><widget class="QPushButton" name="stopButton"><property name="enabled"><bool>false</bool></property><property name="text"><string>停止  Del</string></property></widget></item>
-             <item><widget class="QPushButton" name="spectrumRecordButton"><property name="enabled"><bool>false</bool></property><property name="checkable"><bool>true</bool></property><property name="text"><string>开始记录</string></property></widget></item>
+             <item><widget class="QPushButton" name="spectrumRecordButton"><property name="enabled"><bool>false</bool></property><property name="checkable"><bool>false</bool></property><property name="text"><string>保存 2.0 秒数据</string></property></widget></item>
              <item><widget class="QPushButton" name="exportButton"><property name="text"><string>导出当前数据</string></property></widget></item>
             </layout>
            </widget>

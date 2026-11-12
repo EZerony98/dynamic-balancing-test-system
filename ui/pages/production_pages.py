@@ -541,15 +541,23 @@ class HistoryPage(QWidget):
                         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
                     except (OSError, ValueError):
                         metadata = {}
-                raw = directory / "piezo_left_right_raw.csv"
-                fft = directory / "piezo_left_right_fft.csv"
+                files = metadata.get("files", {})
+                raw = directory / str(files.get("raw", "piezo_left_right_raw.csv"))
+                fft = directory / str(files.get("spectrum", "piezo_left_right_fft.csv"))
+                if not raw.exists():
+                    raw = next(iter(directory.glob("*piezo_left_right_raw.csv")), raw)
                 if not fft.exists():
-                    fft = directory / "piezo_left_right_fft_frames.csv"
+                    fft = next(iter(directory.glob("*piezo_left_right_fft*.csv")), fft)
                 if not (metadata_path.exists() or raw.exists() or fft.exists()):
                     continue
                 record_type = metadata.get("record_type", "continuous_recording")
+                kind = (
+                    "当前数据导出" if record_type == "current_data_export" else
+                    "固定时长记录" if record_type == "fixed_duration_recording" else
+                    "连续记录（旧版）"
+                )
                 records.append((directory.stat().st_mtime, metadata.get("product_id", ""),
-                                "当前数据导出" if record_type == "current_data_export" else "连续记录",
+                                kind,
                                 raw.exists(), fft.exists(), directory))
         records.sort(reverse=True, key=lambda item: item[0])
         self.table.setRowCount(len(records))

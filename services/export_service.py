@@ -2,7 +2,6 @@
 
 import csv
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
@@ -11,6 +10,7 @@ import numpy as np
 
 from models.data import BalancingChunk, LaserAnalysis, LaserChunk, PiezoChunk
 from models.piezo_balance import PiezoSpectrumAnalysis
+from services.export_dictionary import safe_product_filename, write_field_dictionary
 from services.sensor_export import (
     amplitude_engineering_columns,
     engineering_units,
@@ -76,13 +76,14 @@ class ExportService:
         device: dict = None,
     ) -> Dict[str, Path]:
         """Export raw volts plus sensor-specific engineering-unit columns."""
-        safe_product_id = re.sub(r"[^0-9A-Za-z._-]+", "_", product_id.strip()).strip("._-")
-        prefix = (safe_product_id + "_") if safe_product_id else ""
+        safe_product_id = safe_product_filename(product_id)
+        prefix = safe_product_id + "_"
         timestamp = prefix + datetime.now().strftime("piezo_%Y%m%d_%H%M%S_%f")
         target = self.export_directory / timestamp
         target.mkdir(parents=True, exist_ok=True)
-        raw_path = target / "piezo_left_right_raw.csv"
-        fft_path = target / "piezo_left_right_fft.csv"
+        raw_path = target / (prefix + "piezo_left_right_raw.csv")
+        fft_path = target / (prefix + "piezo_left_right_fft.csv")
+        dictionary_path = target / (prefix + "field_dictionary.csv")
         profiles = export_profiles(sensors)
         waveform_headers = []
         spectrum_headers = []
@@ -120,6 +121,11 @@ class ExportService:
                     if len(chunk.reference_state) > index else ""
                 )
                 writer.writerow(row)
+        write_field_dictionary(
+            dictionary_path,
+            profiles,
+            {"raw": raw_path.name, "spectrum": fft_path.name},
+        )
         with fft_path.open("w", newline="", encoding="utf-8-sig") as output:
             writer = csv.writer(output)
             writer.writerow(("frequency_hz", *spectrum_headers))
@@ -174,12 +180,21 @@ class ExportService:
                         "*_voltage_v/*_amplitude_v 保留传感器电压；"
                         "加速度侧同时给出 g、m/s^2，压电侧同时给出 mV"
                     ),
+                    "files": {
+                        "raw": raw_path.name,
+                        "spectrum": fft_path.name,
+                        "field_dictionary": dictionary_path.name,
+                    },
                 },
                 output,
                 ensure_ascii=False,
                 indent=2,
             )
-        return {"raw": raw_path, "spectrum": fft_path}
+        return {
+            "raw": raw_path,
+            "spectrum": fft_path,
+            "field_dictionary": dictionary_path,
+        }
 
     @staticmethod
     def _write_balancing(path: Path, chunk: BalancingChunk) -> None:

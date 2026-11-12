@@ -211,7 +211,7 @@ class Ui_MainWindow(object):
         self.spectrumRecordButton = QPushButton(self.laserHeaderFrame)
         self.spectrumRecordButton.setObjectName(u"spectrumRecordButton")
         self.spectrumRecordButton.setEnabled(False)
-        self.spectrumRecordButton.setCheckable(True)
+        self.spectrumRecordButton.setCheckable(False)
 
         self.laserHeaderLayout.addWidget(self.spectrumRecordButton)
 
@@ -326,7 +326,7 @@ class Ui_MainWindow(object):
         self.startButton.setText(QCoreApplication.translate("MainWindow", u"\u517c\u5bb9\u91c7\u96c6", None))
         self.spectrumButton.setText(QCoreApplication.translate("MainWindow", u"\u5f00\u59cb\u6d4b\u91cf  F3", None))
         self.stopButton.setText(QCoreApplication.translate("MainWindow", u"\u505c\u6b62  Del", None))
-        self.spectrumRecordButton.setText(QCoreApplication.translate("MainWindow", u"\u5f00\u59cb\u8bb0\u5f55", None))
+        self.spectrumRecordButton.setText(QCoreApplication.translate("MainWindow", u"\u4fdd\u5b58 2.0 \u79d2\u6570\u636e", None))
         self.exportButton.setText(QCoreApplication.translate("MainWindow", u"\u5bfc\u51fa\u5f53\u524d\u6570\u636e", None))
         self.workflowTitleLabel.setText(QCoreApplication.translate("MainWindow", u"\u6d4b\u91cf\u6d41\u7a0b", None))
         self.workflowStepsLabel.setText(QCoreApplication.translate("MainWindow", u"1 \u8f93\u5165\u7f16\u53f7  \u2192  2 \u7b49\u5f85\u7a33\u901f  \u2192  3 \u540c\u6b65\u5206\u6790  \u2192  4 \u786e\u8ba4\u7ed3\u679c  \u2192  5 \u8bb0\u5f55 / \u5bfc\u51fa", None))
