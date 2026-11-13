@@ -25,8 +25,16 @@ class PiezoRecordWorker(QObject):
             self.error.emit("双路压电记录启动失败：%s" % exc)
 
     @Slot(object)
-    def append_waveform(self, chunk: AcquisitionChunk) -> None:
+    def append_waveform(self, payload: object) -> None:
         try:
+            if isinstance(payload, dict):
+                chunk = payload.get("chunk")
+                summary = payload.get("summary")
+            else:
+                chunk = payload
+                summary = None
+            if not isinstance(chunk, AcquisitionChunk):
+                return
             if chunk.piezo is not None:
                 complete = self.service.append_waveform(
                     chunk.piezo,
@@ -34,6 +42,7 @@ class PiezoRecordWorker(QObject):
                     chunk.hardware_raw_frequencies.get(
                         "motor_hall", chunk.hardware_frequencies.get("motor_hall", 0.0)
                     ),
+                    summary=summary,
                 )
                 if complete:
                     directory = self.service.stop()

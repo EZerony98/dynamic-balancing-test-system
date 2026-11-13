@@ -90,6 +90,18 @@ class PiezoBalanceUiTest(unittest.TestCase):
             )
             self.assertFalse(window.target_tone_plot.isHidden())
             self.assertFalse(window.right_tone_plot.isHidden())
+            summary = window._measurement_summary(window.latest_piezo)
+            self.assertAlmostEqual(summary["rpm"], 7500.0, places=5)
+            self.assertAlmostEqual(
+                summary["left_smoothed_ac_rms_value"], 14.142, delta=0.1
+            )
+            self.assertAlmostEqual(summary["one_x_frequency_hz"], 125.0, delta=0.1)
+            self.assertAlmostEqual(summary["left_one_x_peak_value"], 20.0, delta=0.1)
+            self.assertAlmostEqual(summary["right_one_x_peak_value"], 30.0, delta=0.1)
+            self.assertAlmostEqual(
+                summary["left_one_x_rms_value"], 20.0 / np.sqrt(2), delta=0.1
+            )
+            self.assertTrue(summary["one_x_valid"])
             worker.running = False
         finally:
             window.close()

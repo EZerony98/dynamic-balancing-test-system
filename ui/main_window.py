@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         self.latest_balancing: Optional[BalancingChunk] = None
         self.latest_piezo: Optional[PiezoChunk] = None
         self.latest_analysis: Optional[PiezoSpectrumAnalysis] = None
+        self.latest_one_x_result: Optional[Piezo1XResult] = None
         self.latest_data_mode: Optional[str] = None
         self.raw_display_seconds = float(
             self.spectrum_config.get("raw_display_seconds", 0.2)
@@ -151,6 +152,14 @@ class MainWindow(QMainWindow):
         self.stable_motor_hall_hz = 0.0
         self.motor_hall_bad_updates = 0
         self.motor_hall_pending_hz = []
+        self.latest_motor_hall_summary = {
+            "rpm": 0.0,
+            "fio3_raw_frequency_hz": 0.0,
+            "fio3_corrected_frequency_hz": 0.0,
+            "fio3_smoothed_frequency_hz": 0.0,
+            "ppr": 1,
+            "speed_quality": "等待光电脉冲",
+        }
 
         export_dir = self.project_dir / config["app"]["paths"]["exports"]
         self.export_service = ExportService(export_dir)
@@ -420,6 +429,7 @@ class MainWindow(QMainWindow):
         self._update_laser_units()
         self._reset_laser_display_buffer()
         self.latest_analysis = None
+        self.latest_one_x_result = None
         self.sensor_settings_requested.emit(serialized)
         try:
             ConfigService(self.project_dir / "config").save_section(
@@ -685,6 +695,7 @@ class MainWindow(QMainWindow):
         if spectrum_mode:
             self.latest_piezo = None
             self.latest_analysis = None
+            self.latest_one_x_result = None
             self.smoothed_force_a_rms = None
             self.smoothed_force_b_rms = None
             for card in (self.speed_card, self.position_a_card, self.position_b_card):
@@ -844,8 +855,6 @@ class MainWindow(QMainWindow):
             self.latest_piezo = chunk.piezo
             self.latest_data_mode = "piezo"
             self._update_laser_wave(chunk.piezo)
-            if self.recording_active:
-                self.record_waveform_requested.emit(chunk)
         status = chunk.piezo if chunk.piezo is not None else chunk.balancing
         if status is None:
             return
@@ -855,6 +864,11 @@ class MainWindow(QMainWindow):
                 "motor_hall", chunk.hardware_frequencies.get("motor_hall", 0.0)
             )),
         )
+        if chunk.piezo is not None and self.recording_active:
+            self.record_waveform_requested.emit({
+                "chunk": chunk,
+                "summary": self._measurement_summary(chunk.piezo),
+            })
         self.statusBar().showMessage(
             "采集中 | %s | Backlog %d/%d | 丢失样本 %d"
             % (
@@ -884,6 +898,14 @@ class MainWindow(QMainWindow):
                 raw_hz, measured_hz, frequency, ppr, quality),
             self.motor_hall_rpm_history,
         )
+        self.latest_motor_hall_summary = {
+            "rpm": rpm,
+            "fio3_raw_frequency_hz": raw_hz,
+            "fio3_corrected_frequency_hz": float(measured_hz),
+            "fio3_smoothed_frequency_hz": frequency,
+            "ppr": ppr,
+            "speed_quality": quality,
+        }
 
     def _update_balancing(
         self,
@@ -1239,6 +1261,7 @@ class MainWindow(QMainWindow):
         ):
             panel.set_data(np.array([]), np.array([]))
         self.latest_analysis = None
+        self.latest_one_x_result = None
         self.piezo_settings_requested.emit(asdict(new_settings))
         self.config["process"]["piezo_balance"] = asdict(new_settings)
         if persist:
@@ -1260,6 +1283,7 @@ class MainWindow(QMainWindow):
         self._balance_settings_changed(asdict(replace(self.balance_panel.settings, ppr=ppr)))
 
     def _update_piezo_one_x(self, result: Piezo1XResult) -> None:
+        self.latest_one_x_result = result
         self.balance_panel.update_result(result)
         self.dual_plane_page.update_result(result)
         self.calibration_page.set_result(result)
@@ -1352,6 +1376,7 @@ class MainWindow(QMainWindow):
     def _target_frequency_changed(self, frequency: float) -> None:
         self.target_frequency_requested.emit(float(frequency))
         self.latest_analysis = None
+        self.latest_one_x_result = None
         for name, panel in (("左", self.target_tone_plot), ("右", self.right_tone_plot)):
             side = "left" if name == "左" else "right"
             profile = self.sensor_profiles[side]
@@ -1439,6 +1464,7 @@ class MainWindow(QMainWindow):
                 measurement_template=self.ui.measurementTemplateComboBox.currentText(),
                 sensors=sensor_profiles_to_dict(self.sensor_profiles),
                 device=self.device_config,
+                summary=self._measurement_summary(self.latest_piezo),
             )
             QMessageBox.information(
                 self,
@@ -1457,6 +1483,88 @@ class MainWindow(QMainWindow):
             "请等待当前采集模式生成一组完整数据后再导出。",
         )
 
+    def _measurement_summary(self, chunk: PiezoChunk) -> dict:
+        """Return the values shown on the speed, RMS and 1X result cards."""
+        summary = dict(self.latest_motor_hall_summary)
+        for side, smoothed_rms in (
+            ("left", self.smoothed_force_a_rms),
+            ("right", self.smoothed_force_b_rms),
+        ):
+            profile = self.sensor_profiles[side]
+            samples = self._clean_samples(chunk.channels[side])
+            prefix = "%s_" % side
+            if profile.enabled and smoothed_rms is not None:
+                summary[prefix + "smoothed_ac_rms_v"] = float(smoothed_rms)
+                summary[prefix + "smoothed_ac_rms_value"] = (
+                    profile.convert_amplitude(smoothed_rms)
+                )
+                summary[prefix + "smoothed_ac_rms_unit"] = profile.effective_unit
+            else:
+                summary[prefix + "smoothed_ac_rms_v"] = ""
+                summary[prefix + "smoothed_ac_rms_value"] = ""
+                summary[prefix + "smoothed_ac_rms_unit"] = ""
+            summary[prefix + "vpp_v"] = float(np.ptp(samples))
+            summary[prefix + "dc_v"] = float(np.mean(samples))
+
+        result = self.latest_one_x_result
+        if result is None:
+            summary.update({
+                "one_x_frequency_hz": "",
+                "one_x_period_ms": "",
+                "one_x_rpm": "",
+                "one_x_valid": False,
+                "one_x_preview_only": False,
+                "relative_electrical_phase_degrees": "",
+                "one_x_status": "等待有效 1X 分析窗",
+            })
+        else:
+            summary.update({
+                "one_x_frequency_hz": result.frequency_hz,
+                "one_x_period_ms": (
+                    1000.0 / result.frequency_hz if result.frequency_hz > 0 else ""
+                ),
+                "one_x_rpm": result.rpm,
+                "one_x_valid": (
+                    self._active_results_valid(result) and not result.preview_only
+                ),
+                "one_x_preview_only": result.preview_only,
+                "relative_electrical_phase_degrees": (
+                    result.relative_phase_degrees
+                    if result.relative_phase_degrees is not None else ""
+                ),
+                "one_x_status": result.status,
+            })
+        for side in SIDES:
+            profile = self.sensor_profiles[side]
+            prefix = "%s_one_x_" % side
+            side_result = getattr(result, side) if result is not None else None
+            if profile.enabled and side_result is not None:
+                peak_v = float(side_result.amplitude_v)
+                peak_value = profile.convert_amplitude(peak_v)
+                summary.update({
+                    prefix + "peak_v": peak_v,
+                    prefix + "peak_value": peak_value,
+                    prefix + "rms_v": peak_v / np.sqrt(2.0),
+                    prefix + "rms_value": peak_value / np.sqrt(2.0),
+                    prefix + "unit": profile.effective_unit,
+                    prefix + "snr": side_result.snr,
+                    "%s_fio3_phase_degrees" % side: (
+                        side_result.shaft_phase_degrees
+                        if side_result.shaft_phase_degrees is not None else ""
+                    ),
+                })
+            else:
+                summary.update({
+                    prefix + "peak_v": "",
+                    prefix + "peak_value": "",
+                    prefix + "rms_v": "",
+                    prefix + "rms_value": "",
+                    prefix + "unit": "",
+                    prefix + "snr": "",
+                    "%s_fio3_phase_degrees" % side: "",
+                })
+        return summary
+
     def _reset_measurement_state(self) -> None:
         self.speed_estimator.reset()
         self.position_a_estimator.reset()
@@ -1470,6 +1578,7 @@ class MainWindow(QMainWindow):
         self.speed_bad_updates = 0
         self.smoothed_force_a_rms = None
         self.smoothed_force_b_rms = None
+        self.latest_one_x_result = None
 
     def _reset_motor_hall_state(self, status: Optional[str] = None) -> None:
         status = status if status is not None else "等待光电脉冲"
@@ -1477,6 +1586,14 @@ class MainWindow(QMainWindow):
         self.stable_motor_hall_hz = 0.0
         self.motor_hall_bad_updates = 0
         self.motor_hall_pending_hz = []
+        self.latest_motor_hall_summary = {
+            "rpm": 0.0,
+            "fio3_raw_frequency_hz": 0.0,
+            "fio3_corrected_frequency_hz": 0.0,
+            "fio3_smoothed_frequency_hz": 0.0,
+            "ppr": max(1, int(self.motor_hall_ppr_spin_box.value())),
+            "speed_quality": status,
+        }
         self.motor_hall_speed_card.update_value(
             "--", "FIO3 | %s" % status, self.motor_hall_rpm_history
         )

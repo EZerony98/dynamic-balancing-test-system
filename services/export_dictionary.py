@@ -15,6 +15,50 @@ _WINDOWS_RESERVED_NAMES = {
 }
 
 
+SUMMARY_FIELD_DEFINITIONS = (
+    ("time_s", "本次保存片段起点后的汇总时刻", "s", "数据块末样本相对保存起点的时间"),
+    ("sample_index", "该汇总行对应的数据块末样本序号", "sample", "采集会话连续样本序号"),
+    ("rpm", "界面显示的平滑转速", "RPM", "fio3_smoothed_frequency_hz×60/PPR"),
+    ("fio3_raw_frequency_hz", "FIO3 直接读取的原始边沿频率", "Hz", "LabJack DIO-EF"),
+    ("fio3_corrected_frequency_hz", "经过设备频率修正的光电频率", "Hz", "原始频率/optical_frequency_divisor"),
+    ("fio3_smoothed_frequency_hz", "通过跳变确认和短时保持后的界面频率", "Hz", "与界面转速卡一致"),
+    ("ppr", "转子每转的有效光电脉冲数", "pulse/rev", "1 表示每圈一次"),
+    ("speed_quality", "界面转速质量状态", "text", "稳定/低通平滑/保持/无光电脉冲等"),
+    ("left_smoothed_ac_rms_v", "左侧界面平滑 AC RMS 的电压值", "V RMS", "逐块去直流 RMS 后按 α=0.20 平滑"),
+    ("left_smoothed_ac_rms_value", "左侧界面显示的平滑 AC RMS", "见 left_smoothed_ac_rms_unit", "按左侧传感器显示单位换算"),
+    ("left_smoothed_ac_rms_unit", "左侧平滑 AC RMS 的显示单位", "text", "mV、g 或 m/s²"),
+    ("left_vpp_v", "左侧当前数据块峰峰值", "Vpp", "max(raw)-min(raw)"),
+    ("left_dc_v", "左侧当前数据块直流均值", "V", "mean(raw)"),
+    ("right_smoothed_ac_rms_v", "右侧界面平滑 AC RMS 的电压值", "V RMS", "逐块去直流 RMS 后按 α=0.20 平滑"),
+    ("right_smoothed_ac_rms_value", "右侧界面显示的平滑 AC RMS", "见 right_smoothed_ac_rms_unit", "按右侧传感器显示单位换算"),
+    ("right_smoothed_ac_rms_unit", "右侧平滑 AC RMS 的显示单位", "text", "mV、g 或 m/s²"),
+    ("right_vpp_v", "右侧当前数据块峰峰值", "Vpp", "max(raw)-min(raw)"),
+    ("right_dc_v", "右侧当前数据块直流均值", "V", "mean(raw)"),
+    ("one_x_frequency_hz", "当前候选/有效 1X 拟合频率", "Hz", "双路联合选峰后精确拟合"),
+    ("one_x_period_ms", "当前 1X 周期", "ms", "1000/one_x_frequency_hz"),
+    ("one_x_rpm", "1X 分析结果中的转速", "RPM", "同步或参考转频×60"),
+    ("one_x_valid", "当前 1X 是否通过所有启用侧有效性判断", "boolean", "质量门结果"),
+    ("one_x_preview_only", "当前结果是否仅为候选预览", "boolean", "true 时不可用于标定"),
+    ("left_one_x_peak_v", "左侧 1X 拟合正弦峰值电压", "V peak", "精确频率正弦拟合"),
+    ("left_one_x_peak_value", "左侧界面显示的 1X 峰值", "见 left_one_x_unit", "按左侧传感器显示单位换算"),
+    ("left_one_x_rms_v", "左侧 1X 正弦 RMS 电压", "V RMS", "left_one_x_peak_v/√2"),
+    ("left_one_x_rms_value", "左侧界面单位下的 1X 正弦 RMS", "见 left_one_x_unit", "left_one_x_peak_value/√2"),
+    ("left_one_x_unit", "左侧 1X 峰值和 RMS 的显示单位", "text", "mV、g 或 m/s²"),
+    ("left_one_x_snr", "左侧 1X 信噪比", "ratio", "1X 峰值/邻频噪声"),
+    ("left_fio3_phase_degrees", "左侧相对 FIO3 下降沿零位的同步角", "degree", "仅同步质量通过时有值"),
+    ("right_one_x_peak_v", "右侧 1X 拟合正弦峰值电压", "V peak", "精确频率正弦拟合"),
+    ("right_one_x_peak_value", "右侧界面显示的 1X 峰值", "见 right_one_x_unit", "按右侧传感器显示单位换算"),
+    ("right_one_x_rms_v", "右侧 1X 正弦 RMS 电压", "V RMS", "right_one_x_peak_v/√2"),
+    ("right_one_x_rms_value", "右侧界面单位下的 1X 正弦 RMS", "见 right_one_x_unit", "right_one_x_peak_value/√2"),
+    ("right_one_x_unit", "右侧 1X 峰值和 RMS 的显示单位", "text", "mV、g 或 m/s²"),
+    ("right_one_x_snr", "右侧 1X 信噪比", "ratio", "1X 峰值/邻频噪声"),
+    ("right_fio3_phase_degrees", "右侧相对 FIO3 下降沿零位的同步角", "degree", "仅同步质量通过时有值"),
+    ("relative_electrical_phase_degrees", "右侧相对左侧的 1X 电气相位", "degree", "右相位-左相位并折算到 ±180°"),
+    ("one_x_status", "当前 1X 分析质量与原因说明", "text", "分析器状态文本"),
+)
+SUMMARY_FIELDS = tuple(item[0] for item in SUMMARY_FIELD_DEFINITIONS)
+
+
 def safe_product_filename(product_id: str) -> str:
     """Return a Windows-safe product token while preserving useful Unicode."""
     value = re.sub(r"[<>:\"/\\|?*\x00-\x1f]+", "_", str(product_id).strip())
@@ -112,6 +156,11 @@ def write_field_dictionary(
         *_engineering_rows(fft_name, profiles, spectrum=True),
     ])
     rows = raw_rows + fft_rows
+    if "summary" in filenames:
+        rows.extend(
+            (filenames["summary"], field, meaning, unit, source)
+            for field, meaning, unit, source in SUMMARY_FIELD_DEFINITIONS
+        )
     if include_recording_streams:
         tach_name = filenames["tach"]
         rows.extend([

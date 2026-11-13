@@ -10,7 +10,11 @@ import numpy as np
 
 from models.data import BalancingChunk, LaserAnalysis, LaserChunk, PiezoChunk
 from models.piezo_balance import PiezoSpectrumAnalysis
-from services.export_dictionary import safe_product_filename, write_field_dictionary
+from services.export_dictionary import (
+    SUMMARY_FIELDS,
+    safe_product_filename,
+    write_field_dictionary,
+)
 from services.sensor_export import (
     amplitude_engineering_columns,
     engineering_units,
@@ -74,6 +78,7 @@ class ExportService:
         measurement_template: str = "",
         sensors: dict = None,
         device: dict = None,
+        summary: dict = None,
     ) -> Dict[str, Path]:
         """Export raw volts plus sensor-specific engineering-unit columns."""
         safe_product_id = safe_product_filename(product_id)
@@ -83,6 +88,7 @@ class ExportService:
         target.mkdir(parents=True, exist_ok=True)
         raw_path = target / (prefix + "piezo_left_right_raw.csv")
         fft_path = target / (prefix + "piezo_left_right_fft.csv")
+        summary_path = target / (prefix + "measurement_summary.csv")
         dictionary_path = target / (prefix + "field_dictionary.csv")
         profiles = export_profiles(sensors)
         waveform_headers = []
@@ -121,11 +127,6 @@ class ExportService:
                     if len(chunk.reference_state) > index else ""
                 )
                 writer.writerow(row)
-        write_field_dictionary(
-            dictionary_path,
-            profiles,
-            {"raw": raw_path.name, "spectrum": fft_path.name},
-        )
         with fft_path.open("w", newline="", encoding="utf-8-sig") as output:
             writer = csv.writer(output)
             writer.writerow(("frequency_hz", *spectrum_headers))
@@ -144,6 +145,26 @@ class ExportService:
                         )
                     )
                 writer.writerow(row)
+        with summary_path.open("w", newline="", encoding="utf-8-sig") as output:
+            writer = csv.writer(output)
+            writer.writerow(SUMMARY_FIELDS)
+            if summary is not None:
+                current = dict(summary)
+                current["time_s"] = 0.0
+                current.setdefault(
+                    "sample_index",
+                    chunk.start_sample + max(0, len(chunk.channels["left"]) - 1),
+                )
+                writer.writerow(current.get(field, "") for field in SUMMARY_FIELDS)
+        write_field_dictionary(
+            dictionary_path,
+            profiles,
+            {
+                "raw": raw_path.name,
+                "spectrum": fft_path.name,
+                "summary": summary_path.name,
+            },
+        )
         device = dict(device or {})
         ni = dict(device.get("ni9234", {}))
         channels = dict(device.get("channels", {}))
@@ -183,6 +204,7 @@ class ExportService:
                     "files": {
                         "raw": raw_path.name,
                         "spectrum": fft_path.name,
+                        "summary": summary_path.name,
                         "field_dictionary": dictionary_path.name,
                     },
                 },
@@ -193,6 +215,7 @@ class ExportService:
         return {
             "raw": raw_path,
             "spectrum": fft_path,
+            "summary": summary_path,
             "field_dictionary": dictionary_path,
         }
 

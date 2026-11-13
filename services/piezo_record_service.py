@@ -9,7 +9,11 @@ from uuid import uuid4
 
 from models.data import PiezoChunk
 from models.piezo_balance import Piezo1XResult, PiezoSpectrumAnalysis
-from services.export_dictionary import safe_product_filename, write_field_dictionary
+from services.export_dictionary import (
+    SUMMARY_FIELDS,
+    safe_product_filename,
+    write_field_dictionary,
+)
 from services.sensor_export import (
     amplitude_engineering_columns,
     engineering_units,
@@ -26,6 +30,7 @@ class PiezoRecordService:
         self._raw = None
         self._fft = None
         self._tach = None
+        self._summary = None
         self._one_x = None
         self._frame = 0
         self._profiles = export_profiles()
@@ -60,12 +65,14 @@ class PiezoRecordService:
                 "raw": "%spiezo_left_right_raw.csv" % prefix,
                 "spectrum": "%spiezo_left_right_fft_frames.csv" % prefix,
                 "tach": "%srotor_photoelectric_snapshots.csv" % prefix,
+                "summary": "%smeasurement_summary.csv" % prefix,
                 "one_x": "%spiezo_one_x.jsonl" % prefix,
                 "field_dictionary": "%sfield_dictionary.csv" % prefix,
             }
             self._raw = writer(filenames["raw"])
             self._fft = writer(filenames["spectrum"])
             self._tach = writer(filenames["tach"])
+            self._summary = writer(filenames["summary"])
             self._one_x = (self.directory / filenames["one_x"]).open(
                 "w", encoding="utf-8"
             )
@@ -92,6 +99,7 @@ class PiezoRecordService:
             self._tach.writerow(("start_sample", "sample_count", "scan_rate_hz",
                                  "received_timestamp", "fio3_corrected_frequency_hz",
                                  "fio3_raw_frequency_hz", "dropped_samples"))
+            self._summary.writerow(SUMMARY_FIELDS)
             write_field_dictionary(
                 self.directory / filenames["field_dictionary"],
                 self._profiles,
@@ -141,7 +149,11 @@ class PiezoRecordService:
             raise
 
     def append_waveform(
-        self, chunk: PiezoChunk, pulse_hz: float, raw_pulse_hz: Optional[float] = None
+        self,
+        chunk: PiezoChunk,
+        pulse_hz: float,
+        raw_pulse_hz: Optional[float] = None,
+        summary: Optional[dict] = None,
     ) -> bool:
         if not self.recording:
             return False
@@ -183,6 +195,11 @@ class PiezoRecordService:
                              chunk.timestamp, float(pulse_hz),
                              float(pulse_hz if raw_pulse_hz is None else raw_pulse_hz),
                              chunk.dropped_samples))
+        if summary is not None:
+            record = dict(summary)
+            record["time_s"] = (recorded_before + count - 1) / chunk.scan_rate
+            record["sample_index"] = chunk.start_sample + count - 1
+            self._summary.writerow(record.get(field, "") for field in SUMMARY_FIELDS)
         self._recorded_samples += count
         self._capture_complete = self._recorded_samples >= int(self._target_samples or 0)
         return self._capture_complete
@@ -251,7 +268,7 @@ class PiezoRecordService:
             except OSError as exc:
                 failure = exc
         self._handles = []
-        self._raw = self._fft = self._tach = self._one_x = None
+        self._raw = self._fft = self._tach = self._summary = self._one_x = None
         if self._metadata_path is not None:
             self._metadata.update(
                 capture_complete=self._capture_complete,

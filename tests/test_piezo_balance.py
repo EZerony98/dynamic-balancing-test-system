@@ -406,8 +406,12 @@ class PiezoRecordTest(unittest.TestCase):
                           "right": -np.arange(12, 24) / 100.0},
                 reference_state=np.ones(12), scan_rate=10, start_sample=112,
             )
-            self.assertFalse(recorder.append_waveform(first, 5.0))
-            self.assertTrue(recorder.append_waveform(second, 5.0))
+            self.assertFalse(recorder.append_waveform(
+                first, 5.0, summary={"rpm": 300.0, "speed_quality": "稳定"}
+            ))
+            self.assertTrue(recorder.append_waveform(
+                second, 5.0, summary={"rpm": 301.0, "speed_quality": "稳定"}
+            ))
             recorder.stop()
             raw_path = path / "转子_A_01_piezo_left_right_raw.csv"
             with raw_path.open(encoding="utf-8-sig") as handle:
@@ -430,6 +434,15 @@ class PiezoRecordTest(unittest.TestCase):
             self.assertIn(("转子_A_01_rotor_photoelectric_snapshots.csv",
                            "fio3_corrected_frequency_hz"), fields)
             self.assertIn(("转子_A_01_piezo_one_x.jsonl", "left.amplitude_v"), fields)
+            summary_path = path / "转子_A_01_measurement_summary.csv"
+            with summary_path.open(encoding="utf-8-sig") as handle:
+                summary_rows = list(csv.DictReader(handle))
+            self.assertEqual(len(summary_rows), 2)
+            self.assertEqual(summary_rows[0]["time_s"], "1.1")
+            self.assertEqual(summary_rows[-1]["time_s"], "1.9")
+            self.assertEqual(summary_rows[-1]["sample_index"], "119")
+            self.assertEqual(summary_rows[-1]["rpm"], "301.0")
+            self.assertIn((summary_path.name, "left_one_x_rms_value"), fields)
 
     def test_current_export_includes_mixed_sensor_engineering_units(self) -> None:
         sensors = {
@@ -458,6 +471,12 @@ class PiezoRecordTest(unittest.TestCase):
             )
             paths = ExportService(Path(directory)).export_piezo(
                 chunk, analysis, product_id="P-EXPORT", sensors=sensors,
+                summary={
+                    "rpm": 10_800.0,
+                    "left_smoothed_ac_rms_value": 0.25,
+                    "left_smoothed_ac_rms_unit": "g",
+                    "one_x_frequency_hz": 180.0,
+                },
                 device={
                     "channels": {"piezo_left": "AIN0", "piezo_right": "AIN3",
                                  "piezo_reference": "DIO3"},
@@ -475,7 +494,12 @@ class PiezoRecordTest(unittest.TestCase):
             self.assertAlmostEqual(float(rows[1][5]), 58.0)
             self.assertEqual(paths["raw"].name, "P-EXPORT_piezo_left_right_raw.csv")
             self.assertEqual(paths["spectrum"].name, "P-EXPORT_piezo_left_right_fft.csv")
+            self.assertEqual(paths["summary"].name, "P-EXPORT_measurement_summary.csv")
             self.assertTrue(paths["field_dictionary"].exists())
+            with paths["summary"].open(encoding="utf-8-sig") as handle:
+                summary_rows = list(csv.DictReader(handle))
+            self.assertEqual(summary_rows[0]["rpm"], "10800.0")
+            self.assertEqual(summary_rows[0]["one_x_frequency_hz"], "180.0")
             metadata = json.loads(
                 (paths["raw"].parent / "measurement_metadata.json").read_text()
             )
